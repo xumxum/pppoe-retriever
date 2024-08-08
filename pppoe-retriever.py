@@ -33,27 +33,27 @@ class Retriever:
         if PPPoED in packet:
             
             # If PADI packet reply with PADO
-            if packet[Dot1Q][PPPoED].code == 9:    
+            if packet[PPPoED].code == 9:    
                 self.send_pado_packet(packet, self.interface)
 
             # If PADR packet reply with PADS
-            if packet[Dot1Q][PPPoED].code == 25:
+            if packet[PPPoED].code == 25:
                 self.send_pads_packet(packet, self.interface)
         
         elif PPPoE in packet:
             
             # Store VLAN as attribute
-            if not self.vlan:
-                self.vlan = packet[Ether][Dot1Q].vlan
+            if not self.vlan and Dot1Q in packet:
+                self.vlan = packet[Dot1Q].vlan
             
             # If PADS then configure PPP_LCP
-            if PPP_LCP_Configure in packet[Ether][Dot1Q][PPP] and packet[Ether][Dot1Q][PPP][PPP_LCP_Configure].code == 1:
+            if PPP_LCP_Configure in packet and packet[PPP_LCP_Configure].code == 1:
                 self.stablish_ppp_lcp_config(packet, self.interface)
             
             # If PPP_PAP_Request store credentials
-            elif PPP_PAP_Request in packet[Ether][Dot1Q][PPP]:
-                self.username = packet[Ether][Dot1Q][PPP][PPP_PAP_Request].username.decode()
-                self.password = packet[Ether][Dot1Q][PPP][PPP_PAP_Request].password.decode()
+            elif PPP_PAP_Request in packet:
+                self.username = packet[PPP_PAP_Request].username.decode()
+                self.password = packet[PPP_PAP_Request].password.decode()
                 
 
     @staticmethod
@@ -63,14 +63,14 @@ class Retriever:
         src_mac = get_if_hwaddr(interface)
         
         # Get Host-Unig tag value
-        if PPPoED_Tags in padi_packet[Dot1Q][PPPoED]:
-            for tag in padi_packet[Dot1Q][PPPoED][PPPoED_Tags].tag_list:
+        if PPPoED_Tags in padi_packet:
+            for tag in padi_packet[PPPoED_Tags].tag_list:
                 if tag.tag_type == 259:  # Host-Uniq Tag
                     host_unique = tag.tag_value
         
         # Create of PADO packet
         pado_packet = ( Ether(src=src_mac, dst=padi_packet[Ether].src) /
-            Dot1Q(prio=0, vlan=padi_packet[Ether][Dot1Q].vlan) /
+            (Dot1Q(prio=0, vlan=padi_packet[Dot1Q].vlan) if Dot1Q in padi_packet else None) /
             PPPoED(code=7) /
             PPPoED_Tags(tag_list = [PPPoETag(tag_type=257, tag_value=""), PPPoETag(tag_type=258, tag_value="MyAccessConcentrator"), PPPoETag(tag_type=260, tag_value=RandString(16)), PPPoETag(tag_type=259, tag_value=host_unique)])
             #Padding(load=b'\x00' * 2)
@@ -83,8 +83,8 @@ class Retriever:
     def send_pads_packet(padr_packet, interface):
         
         # Get Host-Unig and AC-Cookie tag values
-        if PPPoED_Tags in padr_packet[Dot1Q][PPPoED]:
-            for tag in padr_packet[Dot1Q][PPPoED][PPPoED_Tags].tag_list:
+        if PPPoED_Tags in padr_packet:
+            for tag in padr_packet[PPPoED_Tags].tag_list:
                 if tag.tag_type == 259:  # Host-Uniq Tag
                     host_unique = tag.tag_value
                 elif tag.tag_type == 260:  # AC-Cookie Tag
@@ -92,7 +92,7 @@ class Retriever:
         
         # Create of PADO packet
         packet = ( Ether(src=padr_packet[Ether].dst, dst=padr_packet[Ether].src) /
-            Dot1Q(prio=0, vlan=padr_packet[Ether][Dot1Q].vlan) /
+            (Dot1Q(prio=0, vlan=padr_packet[Dot1Q].vlan) if Dot1Q in padr_packet else None) /
             # Generate a random integer between 1 and 65535
             PPPoED(code=101, sessionid=random.randint(1, 0xFFFF)) /
             PPPoED_Tags(tag_list = [PPPoETag(tag_type=257, tag_value=""), PPPoETag(tag_type=260, tag_value=ac_cookie), PPPoETag(tag_type=259, tag_value=host_unique)])
@@ -107,11 +107,11 @@ class Retriever:
         # Ether / Dot1Q / PPPoE / PPP / LCP Configure-Request / Padding
 
         config_ack_packet = ( Ether(src=pads_packet[Ether].dst, dst=pads_packet[Ether].src) /
-            Dot1Q(prio=0, vlan=pads_packet[Ether][Dot1Q].vlan) /
+            (Dot1Q(prio=0, vlan=pads_packet[Dot1Q].vlan) if Dot1Q in pads_packet else None) /
             # Generate a random integer between 1 and 65535
-            PPPoE(sessionid=pads_packet[Ether][Dot1Q][PPPoE].sessionid) /
+            PPPoE(sessionid=pads_packet[PPPoE].sessionid) /
             PPP() /
-            PPP_LCP_Configure(code=2, id=pads_packet[Ether][Dot1Q][PPPoE][PPP][PPP_LCP_Configure].id, options=pads_packet[Ether][Dot1Q][PPPoE][PPP][PPP_LCP_Configure].options) /
+            PPP_LCP_Configure(code=2, id=pads_packet[PPP_LCP_Configure].id, options=pads_packet[PPP_LCP_Configure].options) /
             Padding(load=b'\x00' * 20)
             )
         
@@ -120,9 +120,9 @@ class Retriever:
         
 
         config_packet = ( Ether(src=pads_packet[Ether].dst, dst=pads_packet[Ether].src) /
-            Dot1Q(prio=0, vlan=pads_packet[Ether][Dot1Q].vlan) /
+            (Dot1Q(prio=0, vlan=pads_packet[Dot1Q].vlan) if Dot1Q in pads_packet else None) /
             # Generate a random integer between 1 and 65535
-            PPPoE(sessionid=pads_packet[Ether][Dot1Q][PPPoE].sessionid) /
+            PPPoE(sessionid=pads_packet[PPPoE].sessionid) /
             PPP() /
             # id requires 0 <= number <= 255
             PPP_LCP_Configure(code=1, id=35, options=[PPP_LCP_Auth_Protocol_Option(),]) /
