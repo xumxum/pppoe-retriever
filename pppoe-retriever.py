@@ -18,11 +18,11 @@ from scapy.all import (PPP, Dot1Q, Ether, Padding,
 
 class Retriever:
     
-    def __init__(self, interface):
+    def __init__(self, interface, vlan):
         self.interface = interface
+        self.vlan = vlan
         self.username = None
         self.password = None
-        self.vlan = None
 
         # Replace 'lo' with the appropriate loopback interface on your system
         sniff(prn=self.handle_eth_frame, iface=self.interface, lfilter=lambda pkg: pkg.haslayer(PPP) or pkg.haslayer(PPPoED), stop_filter=lambda pkg: pkg.haslayer(PPP_PAP_Request), store=0)
@@ -34,21 +34,17 @@ class Retriever:
             
             # If PADI packet reply with PADO
             if packet[PPPoED].code == 9:    
-                self.send_pado_packet(packet, self.interface)
+                self.send_pado_packet(packet, self.interface, self.vlan)
 
             # If PADR packet reply with PADS
             if packet[PPPoED].code == 25:
-                self.send_pads_packet(packet, self.interface)
+                self.send_pads_packet(packet, self.interface, self.vlan)
         
         elif PPPoE in packet:
             
-            # Store VLAN as attribute
-            if not self.vlan and Dot1Q in packet:
-                self.vlan = packet[Dot1Q].vlan
-            
             # If PADS then configure PPP_LCP
             if PPP_LCP_Configure in packet and packet[PPP_LCP_Configure].code == 1:
-                self.stablish_ppp_lcp_config(packet, self.interface)
+                self.stablish_ppp_lcp_config(packet, self.interface, self.vlan)
             
             # If PPP_PAP_Request store credentials
             elif PPP_PAP_Request in packet:
@@ -57,7 +53,7 @@ class Retriever:
                 
 
     @staticmethod
-    def send_pado_packet(padi_packet, interface):
+    def send_pado_packet(padi_packet, interface, vlan):
         
         # Extract the mac address of the interface
         src_mac = get_if_hwaddr(interface)
@@ -68,9 +64,14 @@ class Retriever:
                 if tag.tag_type == 259:  # Host-Uniq Tag
                     host_unique = tag.tag_value
         
+        test = Ether(src=src_mac, dst=padi_packet[Ether].src)
+        src=src_mac
+        dst=padi_packet[Ether].src
+        print(type(test))
+
         # Create of PADO packet
         pado_packet = ( Ether(src=src_mac, dst=padi_packet[Ether].src) /
-            (Dot1Q(prio=0, vlan=padi_packet[Dot1Q].vlan) if Dot1Q in padi_packet else None) /
+            Dot1Q(prio=0, vlan=vlan) /
             PPPoED(code=7) /
             PPPoED_Tags(tag_list = [PPPoETag(tag_type=257, tag_value=""), PPPoETag(tag_type=258, tag_value="MyAccessConcentrator"), PPPoETag(tag_type=260, tag_value=RandString(16)), PPPoETag(tag_type=259, tag_value=host_unique)])
             #Padding(load=b'\x00' * 2)
@@ -80,7 +81,7 @@ class Retriever:
         sendp(pado_packet, iface=interface, verbose=False)
 
     @staticmethod
-    def send_pads_packet(padr_packet, interface):
+    def send_pads_packet(padr_packet, interface, vlan):
         
         # Get Host-Unig and AC-Cookie tag values
         if PPPoED_Tags in padr_packet:
@@ -92,7 +93,7 @@ class Retriever:
         
         # Create of PADO packet
         packet = ( Ether(src=padr_packet[Ether].dst, dst=padr_packet[Ether].src) /
-            (Dot1Q(prio=0, vlan=padr_packet[Dot1Q].vlan) if Dot1Q in padr_packet else None) /
+            Dot1Q(prio=0, vlan=vlan) /
             # Generate a random integer between 1 and 65535
             PPPoED(code=101, sessionid=random.randint(1, 0xFFFF)) /
             PPPoED_Tags(tag_list = [PPPoETag(tag_type=257, tag_value=""), PPPoETag(tag_type=260, tag_value=ac_cookie), PPPoETag(tag_type=259, tag_value=host_unique)])
@@ -103,11 +104,11 @@ class Retriever:
     
         
     @staticmethod
-    def stablish_ppp_lcp_config(pads_packet, interface):
+    def stablish_ppp_lcp_config(pads_packet, interface, vlan):
         # Ether / Dot1Q / PPPoE / PPP / LCP Configure-Request / Padding
 
         config_ack_packet = ( Ether(src=pads_packet[Ether].dst, dst=pads_packet[Ether].src) /
-            (Dot1Q(prio=0, vlan=pads_packet[Dot1Q].vlan) if Dot1Q in pads_packet else None) /
+            Dot1Q(prio=0, vlan=vlan) /
             # Generate a random integer between 1 and 65535
             PPPoE(sessionid=pads_packet[PPPoE].sessionid) /
             PPP() /
@@ -120,7 +121,7 @@ class Retriever:
         
 
         config_packet = ( Ether(src=pads_packet[Ether].dst, dst=pads_packet[Ether].src) /
-            (Dot1Q(prio=0, vlan=pads_packet[Dot1Q].vlan) if Dot1Q in pads_packet else None) /
+            (Dot1Q(prio=0, vlan=pads_packet[Dot1Q].vlan) if Dot1Q in pads_packet else Dot1Q(prio=0, vlan=24)) /
             # Generate a random integer between 1 and 65535
             PPPoE(sessionid=pads_packet[PPPoE].sessionid) /
             PPP() /
@@ -138,6 +139,7 @@ def main():
     parser = ArgumentParser(description='Retrieves the PPPoE credentials from ISP-locked down routers.')
     
     parser.add_argument('-i', '--interface', type=str, required=True, help='interface to monitor on')
+    parser.add_argument('-l', '--vlan', type=int, nargs='+', required=True, help='ethernet VLAN ID')
     #parser.add_argument('-v', '--version', help='version')
     
     args = parser.parse_args()
@@ -146,7 +148,7 @@ def main():
     rtrv = None
     
     with console.status(f"Monitoring interface {args.interface} for PPPoE connection to be stablish", spinner="dots"):
-        rtrv = Retriever(args.interface)
+        rtrv = Retriever(args.interface, args.vlan[0])
         
     result_message = f"Username: {rtrv.username}\nPassword: {rtrv.password}\n\n\nYou may need the VLAN configuration to complete the setup of your new router.\n\nVLAN: {rtrv.vlan}"
 
