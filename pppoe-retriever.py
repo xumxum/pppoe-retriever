@@ -63,11 +63,6 @@ class Retriever:
             for tag in padi_packet[PPPoED_Tags].tag_list:
                 if tag.tag_type == 259:  # Host-Uniq Tag
                     host_unique = tag.tag_value
-        
-        test = Ether(src=src_mac, dst=padi_packet[Ether].src)
-        src=src_mac
-        dst=padi_packet[Ether].src
-        print(type(test))
 
         # Create of PADO packet
         pado_packet = ( Ether(src=src_mac, dst=padi_packet[Ether].src) /
