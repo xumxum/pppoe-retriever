@@ -1,0 +1,40 @@
+on:
+  release:
+    types: [created]
+
+name: Create frozen binaries for release
+
+jobs:
+
+  generate:
+    name: Create release-artifacts
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@master
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.1.1
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable
+        run: pyinstaller --onefile --name pppoe-retriever-${{matrix.os}} --distpath ./dist pppoe-retriever.py
+        
+      - name: Upload frozen binaries to realease
+        uses: AButler/upload-release-assets@v3.0
+        with:
+          files: "./dist/pppoe-retriever-${{matrix.os}}*"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+ 
