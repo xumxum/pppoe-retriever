@@ -12,14 +12,19 @@ Python script designed to retrieve PPPoE (Point-to-Point Protocol over Ethernet)
 
 ## Installation
 
-No need to install, you can find frozen-binaries for Linux, Mac and Windows under the release page.
+No need to install, you can find frozen-binaries for Linux, Mac and Windows under the [release page](https://github.com/guillermodotn/pppoe-retriever/releases/latest).
 
 ## Usage
 
 1. Connect the router WAN port to you computer using a Ethernet cable.
 2. Identify the interface you have connected the router.
-3. Download `pppoe-retrieval` script for your OS.
-4. Run the program as superuser and wait a couple of minutes for the router to initiate a PPPoED.
+3. Download `pppoe-retrieval` script for your platform.
+4. Run the program and allow it some time to complete its process.
+
+    ```bash
+    $ ./pppoe-retriever-ubuntu-latest -i <interface> -l <vlan_id>
+    ```
+    > On Linux, run it with root privileges.
 
 ## Tested devices
 
