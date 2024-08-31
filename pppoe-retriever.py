@@ -23,6 +23,7 @@ class Retriever:
         self.vlan = vlan
         self.username = None
         self.password = None
+        self.vlan_dict = {i: i.to_bytes(16, 'big') for i in range(100)} # Range of possible VLAN_ID's (4096, 12 bits).
 
         # Replace 'lo' with the appropriate loopback interface on your system
         sniff(prn=self.handle_eth_frame, iface=self.interface, lfilter=lambda pkg: pkg.haslayer(PPP) or pkg.haslayer(PPPoED), stop_filter=lambda pkg: pkg.haslayer(PPP_PAP_Request), store=0)
@@ -33,11 +34,26 @@ class Retriever:
         if PPPoED in packet:
             
             # If PADI packet reply with PADO
-            if packet[PPPoED].code == 9:    
-                self.send_pado_packet(packet, self.interface, self.vlan)
+            if packet[PPPoED].code == 9:
+                if self.vlan:
+                    self.send_pado_packet(packet, self.interface, self.vlan, RandString(16))
+                else:
+                    for vlan_id, ac_cookie in self.vlan_dict.items():
+                        self.send_pado_packet(packet, self.interface, vlan_id, ac_cookie)
+                    
 
             # If PADR packet reply with PADS
             if packet[PPPoED].code == 25:
+                # Retrieve the VLAN ID
+                response_ac_cookie = ""
+                for tag in packet[PPPoED_Tags].tag_list:
+                    if tag.tag_type == 260:  # AC_Cookie Tag
+                        response_ac_cookie = tag.tag_value
+                for vlan_id, ac_cookie in self.vlan_dict.items():
+                    if bytes(ac_cookie) == response_ac_cookie:
+                        self.vlan = vlan_id
+                
+                
                 self.send_pads_packet(packet, self.interface, self.vlan)
         
         elif PPPoE in packet:
@@ -53,7 +69,7 @@ class Retriever:
                 
 
     @staticmethod
-    def send_pado_packet(padi_packet, interface, vlan):
+    def send_pado_packet(padi_packet, interface, vlan, ac_cookie):
         
         # Extract the mac address of the interface
         src_mac = get_if_hwaddr(interface)
@@ -68,7 +84,7 @@ class Retriever:
         pado_packet = ( Ether(src=src_mac, dst=padi_packet[Ether].src) /
             Dot1Q(prio=0, vlan=vlan) /
             PPPoED(code=7) /
-            PPPoED_Tags(tag_list = [PPPoETag(tag_type=257, tag_value=""), PPPoETag(tag_type=258, tag_value="MyAccessConcentrator"), PPPoETag(tag_type=260, tag_value=RandString(16)), PPPoETag(tag_type=259, tag_value=host_unique)])
+            PPPoED_Tags(tag_list = [PPPoETag(tag_type=257, tag_value=""), PPPoETag(tag_type=258, tag_value="MyAccessConcentrator"), PPPoETag(tag_type=260, tag_value=ac_cookie), PPPoETag(tag_type=259, tag_value=host_unique)])
             #Padding(load=b'\x00' * 2)
             )
         
@@ -134,7 +150,7 @@ def main():
     parser = ArgumentParser(description='Retrieves the PPPoE credentials from ISP-locked down routers.')
     
     parser.add_argument('-i', '--interface', type=str, required=True, help='interface to monitor on')
-    parser.add_argument('-l', '--vlan', type=int, nargs='+', required=True, help='ethernet VLAN ID')
+    parser.add_argument('-l', '--vlan', type=int, nargs='+', default=None, help='ethernet VLAN ID')
     #parser.add_argument('-v', '--version', help='version')
     
     args = parser.parse_args()
@@ -143,7 +159,7 @@ def main():
     rtrv = None
     
     with console.status(f"Monitoring interface {args.interface} for PPPoE connection to be stablish", spinner="dots"):
-        rtrv = Retriever(args.interface, args.vlan[0])
+        rtrv = Retriever(args.interface, args.vlan)
         
     result_message = f"Username: {rtrv.username}\nPassword: {rtrv.password}\n\n\nYou may need the VLAN configuration to complete the setup of your new router.\n\nVLAN: {rtrv.vlan}"
 
