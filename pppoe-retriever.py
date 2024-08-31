@@ -2,7 +2,7 @@
 
 
 import random
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
 
 from rich import print
 from rich.align import Align
@@ -18,12 +18,12 @@ from scapy.all import (PPP, Dot1Q, Ether, Padding,
 
 class Retriever:
     
-    def __init__(self, interface, vlan):
+    def __init__(self, interface, vlan, search_range):
         self.interface = interface
         self.vlan = vlan
         self.username = None
         self.password = None
-        self.vlan_dict = {i: i.to_bytes(16, 'big') for i in range(100)} # Range of possible VLAN_ID's (4096, 12 bits).
+        self.vlan_dict = {i: i.to_bytes(16, 'big') for i in range(search_range)} # Range of possible VLAN_ID's (4096, 12 bits).
 
         # Replace 'lo' with the appropriate loopback interface on your system
         sniff(prn=self.handle_eth_frame, iface=self.interface, lfilter=lambda pkg: pkg.haslayer(PPP) or pkg.haslayer(PPPoED), stop_filter=lambda pkg: pkg.haslayer(PPP_PAP_Request), store=0)
@@ -150,18 +150,27 @@ def main():
     parser = ArgumentParser(description='Retrieves the PPPoE credentials from ISP-locked down routers.')
     
     parser.add_argument('-i', '--interface', type=str, required=True, help='interface to monitor on')
-    parser.add_argument('-l', '--vlan', type=int, nargs='+', default=None, help='ethernet VLAN ID')
-    #parser.add_argument('-v', '--version', help='version')
+    parser.add_argument('-l', '--vlan', type=int, default=None, help='ethernet VLAN ID')
+    parser.add_argument('-r', '--range', type=int, const=100, default=1, nargs='?', help="range of VLAN ID's to try with (must be between 1 and 4096), this will be ignored if --vlan argument is provided")
+    parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.1.0', help='version')
     
     args = parser.parse_args()
     
+    # Range argument checking
+    if args.range < 1 or args.range > 4096:
+        raise ArgumentTypeError(f"Range must be between 1 and 4096. Given: {args.range}")
+
     console = Console()
     rtrv = None
     
     with console.status(f"Monitoring interface {args.interface} for PPPoE connection to be stablish", spinner="dots"):
-        rtrv = Retriever(args.interface, args.vlan)
+        rtrv = Retriever(args.interface, args.vlan, args.range)
         
-    result_message = f"Username: {rtrv.username}\nPassword: {rtrv.password}\n\n\nYou may need the VLAN configuration to complete the setup of your new router.\n\nVLAN: {rtrv.vlan}"
+    result_message = f"Username: {rtrv.username}\nPassword: {rtrv.password}"
+    
+    
+    if not args.vlan:
+        result_message += f"\n\n\nYou may need the VLAN configuration to complete the setup of your new router.\n\nVLAN: {rtrv.vlan}"
 
     panel = Panel(
             RichPadding(Align.center(Text(result_message, justify='center')), (4,2)),
@@ -173,4 +182,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except ArgumentTypeError as e:
+        print(e)
