@@ -26,6 +26,8 @@ No need to install, you can find frozen-binaries for Linux, Mac and Windows unde
     ```
     > On Linux, run it with root privileges.
 
+For more information about how to use this script refer to: [PPPoE Credential Retrieval Tutorial](https://guillermodotn.github.io/posts/Retrieve_PPPoE_credentials/)
+
 ## Tested devices
 
 If you have tested this tool on a device that is not listed below, please consider submitting an update with your new entry or creating an issue with the details of the device.
