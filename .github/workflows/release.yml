@@ -1,6 +1,10 @@
 on:
+  push:
+    branches:
+      - main
   release:
-    types: [created]
+    types: 
+      - created
 
 name: Create frozen binaries for release
 
@@ -31,7 +35,15 @@ jobs:
       - name: Build executable
         run: pyinstaller --onefile --name pppoe-retriever-${{matrix.os}} --distpath ./dist pppoe-retriever.py
         
+      - name: Upload artifacts
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pppoe-retriever-${{matrix.os}}
+          path: dist/
+
       - name: Upload frozen binaries to realease
+        if: github.event_name == 'release' && github.event.action == 'created'
         uses: AButler/upload-release-assets@v3.0
         with:
           files: "./dist/pppoe-retriever-${{matrix.os}}*"

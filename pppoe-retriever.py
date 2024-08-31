@@ -151,7 +151,7 @@ def main():
     
     parser.add_argument('-i', '--interface', type=str, required=True, help='interface to monitor on')
     parser.add_argument('-l', '--vlan', type=int, default=None, help='ethernet VLAN ID')
-    parser.add_argument('-r', '--range', type=int, const=100, default=1, nargs='?', help="range of VLAN ID's to try with (must be between 1 and 4096), this will be ignored if --vlan argument is provided")
+    parser.add_argument('-r', '--range', type=int, const=4096, default=50, nargs='?', help="range of VLAN ID's to try with (must be between 1 and 4096), this will be ignored if --vlan argument is provided")
     parser.add_argument('-v', '--version', action='version', version='%(prog)s 1.1.0', help='version')
     
     args = parser.parse_args()
