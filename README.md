@@ -22,7 +22,7 @@ No need to install, you can find frozen-binaries for Linux, Mac and Windows unde
 4. Run the program and allow it some time to complete its process.
 
     ```bash
-    $ ./pppoe-retriever-ubuntu-latest -i <interface> -l <vlan_id>
+    $ ./pppoe-retriever-ubuntu-latest -i <interface>
     ```
     > On Linux, run it with root privileges.
 
