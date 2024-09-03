@@ -2,6 +2,8 @@
 
 Python script designed to retrieve PPPoE (Point-to-Point Protocol over Ethernet) credentials from routers that are restricted or locked down by ISPs (Internet Service Providers). This tool is particularly useful for those who need to manage or reconfigure network settings but encounter difficulties accessing credentials due to ISP-imposed restrictions.
 
+> **Note:** Limited to Ethernet WAN Routers
+
 ## Features
 
 - **Retrieve PPPoE Credentials**: Extract PPPoE usernames and passwords from routers that are typically locked down by ISPs.
