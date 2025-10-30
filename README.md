@@ -38,4 +38,5 @@ If you have tested this tool on a device that is not listed below, please consid
 | Model               | ISP            | Firmware Version |
 |---------------------|----------------|------------------|
 | lowi-h500s          | lowi           | 1.0.0            |
-
+|---------------------|----------------|------------------|
+| HT-178AX            | Cablenet Cy    |                  |
